@@ -1,7 +1,7 @@
 // version 1.1 : adding ascii mode. rawBoson a ....
 // version 1.2 : fixing the send command. using buffer instead of byte by byte
 // version 1.3 : Fixing the HELP menu to include working examples.
-
+// version 1.4 : Translating to english
 
 #ifndef RAWBOSON_H
 #define RAWBOSON_H
@@ -12,7 +12,7 @@
 #include <time.h>
 
 // Define version
-#define version "v1.3"
+#define version "v1.4"
 
 // Define COLOR CODES
 #define RED   "\x1B[31m"

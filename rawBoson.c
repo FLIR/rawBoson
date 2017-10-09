@@ -103,7 +103,7 @@ int64_t GetTickCount() {
         unsigned long long  timestamp_nsecs_to_ms = 0;
         unsigned long long   timestamp_ms = 0;
 
-	      //Clock Get Time ////////////////////
+	//Clock Get Time ////////////////////
         clock_gettime(CLOCK_MONOTONIC, &now);
         timestamp_secs_to_ms = ( unsigned long long)now.tv_sec;
         timestamp_secs_to_ms = timestamp_secs_to_ms * 1000;
@@ -545,7 +545,7 @@ int main(int argc, char **argv) {
   }
 
 	sprintf(aux_cad,"%i,8,n,1",baudios);
-	//-- abrimos el puerto serie
+	// open serial port
 	puerto_serie_conf=str2ps(puerto_str,aux_cad);
 	ret=open_port(puerto_serie_conf, &serial);
 	if ( ret != 0) {

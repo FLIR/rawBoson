@@ -104,7 +104,7 @@ char read_serial_car(HANDLE fd) {
 
 int flush_buffer_tx(HANDLE fd) {
   if (tcflush(fd,TCOFLUSH)==-1) {
-  //  printf("Error al vaciar el buffer de transmision\n");
+  //  printf("Error flushing TX buffer\n");
     return 0;
   }
   return 1;
@@ -113,7 +113,7 @@ int flush_buffer_tx(HANDLE fd) {
 
 int flush_buffer_rx(HANDLE fd) {
   if (tcflush(fd,TCIFLUSH)==-1) {
-  //  printf("Error al vaciar el buffer de recepcion\n");
+  //  printf("Error flushing RX buffer\n");
     return 0;
   }
   return 1;
@@ -122,7 +122,7 @@ int flush_buffer_rx(HANDLE fd) {
 
 int send_break(HANDLE fd) {
   if (tcsendbreak(fd,1)==-1) {
-  //  printf("Error al vaciar al mandar el break\n");
+  //  printf("Error when sending BREAK\n");
     return 0;
   }
   return 1;
@@ -175,9 +175,7 @@ PortSettingsType str2ps (char *str1, char*str2) {
 	return ps;
 }
 
-/*
-	Funciones internas de la librer�a
-*/
+
 
 int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 	int n;
@@ -289,7 +287,7 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 	/* Deal with hardware or software flow control */
 	options.c_cflag &= ~CRTSCTS; /* Disable RTS/CTS */
 	//options.c_iflag |= (IXANY); /* xon/xoff flow control */
-	options.c_iflag &= ~(IXON|IXOFF|IXANY); /* xon/xoff flow control */ // @@@
+	options.c_iflag &= ~(IXON|IXOFF|IXANY); /* xon/xoff flow control */ 
 
 	/* Output processing */
 	options.c_oflag &= ~OPOST; /* No output processing */
