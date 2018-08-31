@@ -399,7 +399,7 @@ void Boson_BitUnstuffing() {
   aux_boson_package[j++]=boson_stuffed_package[0];
   // Search for bytes to be sttuffed
   for(i=1; i<boson_stuffed_package_len-1 ; i++) {
-      if ( boson_stuffed_package[i]==0x9A) {
+      if ( boson_stuffed_package[i]==0x9E) {
           aux_boson_package[j++]=boson_stuffed_package[i+1]+0xD;  // This is required by Boson
           i++;  // skip one (already used)
       } else {
