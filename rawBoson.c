@@ -363,15 +363,15 @@ void Boson_BitStuffing() {
       switch (aux_boson_package[i]) {
         case 0x8E:
             boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0x81;
+            boson_stuffed_package[j++]=0x8E;
             break;
         case 0x9E:
             boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0x91;
+            boson_stuffed_package[j++]=0x9E;
             break;
         case 0xAE:
             boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0xA1;
+            boson_stuffed_package[j++]=0xAE;
             break;
         default:
             boson_stuffed_package[j++]=aux_boson_package[i];
@@ -400,7 +400,7 @@ void Boson_BitUnstuffing() {
   // Search for bytes to be sttuffed
   for(i=1; i<boson_stuffed_package_len-1 ; i++) {
       if ( boson_stuffed_package[i]==0x9A) {
-          aux_boson_package[j++]=boson_stuffed_package[i+1]+0xD;
+          aux_boson_package[j++]=boson_stuffed_package[i+1]+0xD;  // This is required by Boson
           i++;  // skip one (already used)
       } else {
           aux_boson_package[j++]=boson_stuffed_package[i];
