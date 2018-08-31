@@ -363,15 +363,15 @@ void Boson_BitStuffing() {
       switch (aux_boson_package[i]) {
         case 0x8E:
             boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0x8E;
+            boson_stuffed_package[j++]=0x81;
             break;
         case 0x9E:
             boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0x9E;
+            boson_stuffed_package[j++]=0x91;
             break;
         case 0xAE:
             boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0xAE;
+            boson_stuffed_package[j++]=0xA1;
             break;
         default:
             boson_stuffed_package[j++]=aux_boson_package[i];
