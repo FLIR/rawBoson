@@ -1,7 +1,8 @@
-// version 1.1 : adding ascii mode. rawBoson a ....
-// version 1.2 : fixing the send command. using buffer instead of byte by byte
-// version 1.3 : Fixing the HELP menu to include working examples.
-// version 1.4 : Translating to english
+// version 0.1.1 : adding ascii mode. rawBoson a ....
+// version 0.1.2 : fixing the send command. using buffer instead of byte by byte
+// version 0.1.3 : Fixing the HELP menu to include working examples.
+// version 0.1.4 : Translating to english
+// version 1.0.0 : Fix CRC issue, start using GitHub tags to track versions.
 
 #ifndef RAWBOSON_H
 #define RAWBOSON_H
@@ -10,9 +11,6 @@
 #include "bytes.h"
 #include <unistd.h>
 #include <time.h>
-
-// Define version
-#define version "v1.4"
 
 // Define COLOR CODES
 #define RED   "\x1B[31m"

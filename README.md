@@ -1,4 +1,4 @@
---------------- Description ------------------
+## Description-
 
 RawBoson is a tool that implements Boson FSLP protocol over serial.
 It allows to send any command that is in Boson-ICD to the camera.
@@ -19,10 +19,10 @@ Other parameters:
 * '-p' and '-b' configures serial port
 
 
----------- Instructions -------------
+## Instructions 
 
 To compile : make
 To clean   : make clean
 
-# add right permissions to serial port
+## Add right permissions to serial port
 sudo chmod a+rwx /dev/ttyACM0
