@@ -120,7 +120,7 @@ int Send_Serial_package( unsigned char *package, short package_len) {
     // Clear TX buffer
     flush_buffer_tx(serial);   // Serial GLobal Var
     // send_to_serial returns 0 if Error. 1 if OK
-    return send_to_serial(serial, package, package_len) -1 ; // to convert to our Error convention
+    return send_buffer(serial, package, package_len) -1 ; // to convert to our Error convention
 }
 
 // Low level function that waits to receive a package from serial
@@ -137,8 +137,8 @@ int Receive_Serial_package() {
 	// Repeat until START BYTE is received or timeout (10sec) happens!!
 	endwait = GetTickCount () + SERIAL_TIMEOUT;
 	while ( (GetTickCount() < endwait) )  {
-		  if ( car_waiting(serial) ) {
-            car = read_serial_car(serial)&0xFF;
+		  if ( rxbyte_waiting(serial) ) {
+            car = read_byte(serial)&0xFF;
 			      if ( car == 0x8E ) {
                 boson_stuffed_package[i++]=0x8E;
                 break;
@@ -153,8 +153,8 @@ int Receive_Serial_package() {
   // Receive data until END of FRAME is received.
   endwait = GetTickCount () + SERIAL_TIMEOUT;
 	while ( (GetTickCount() < endwait) )  {
-      if ( car_waiting(serial) ) {
-          car = read_serial_car(serial);
+      if ( rxbyte_waiting(serial) ) {
+          car = read_byte(serial);
           boson_stuffed_package[i++]=car;
           boson_stuffed_package_len=i;
           if (car == 0xAE) {

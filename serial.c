@@ -1,16 +1,26 @@
+/*
+MIT License
+
+Copyright 2002 Ifara Tecnologias S.L.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 #include "serial.h"
-#include <termios.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
 
-
+// Opens serial port
+// Input  : PortSettingType
+// Output : handle to the device
+// Returns 0 on success
+// Returns -1 if not capable of opening the serial port handler
+// Returns -2 if serial port settings cannot be applied
 int open_port(PortSettingsType ps,HANDLE *handle) {
 	if ( (*handle = open(ps.port,O_RDWR | O_NOCTTY | O_NONBLOCK )) == -1 )
 	{
-//		printf("Error opening port %s\n",ps.port);
 		return ( -1 );
 	}
 	else
@@ -20,38 +30,50 @@ int open_port(PortSettingsType ps,HANDLE *handle) {
 			return (-2);
 		}
 		else {
-//			printf("Port %s opened\n",ps.port);
 			return 0;
 		}
 	}
 }
 
 
+// Close the serial port handle
+// Returns 0 on success
+// Returns -1 on error , and errno is updated.
 int close_port(HANDLE handle) {
-//	printf("Closing serial port\n");
 	return close(handle);
 }
 
 
-int send_to_serial(HANDLE fd, unsigned char *tx_array, short bytes_to_send) {
+
+// Send buffer of  bytes 
+// Input: serial port handler, pointer to first byte of buffer , number of bytes to send
+// Returns 0 on success
+// Returns -1 on error
+int send_buffer(HANDLE fd, unsigned char *tx_array, short bytes_to_send) {
 	if ( write(fd, tx_array,bytes_to_send)==-1) {
- 	  	printf("Error transmiting serial bytes\n");
-   		return 0;
+ 	  	//printf("Error transmiting serial bytes\n");
+   		return -1;
   	}
-  	return 1;
+  	return 0;
 }
 
-
-int send_to_serial_car(HANDLE fd, char car) {
+// Send one byte 
+// Input: serial port handler, byte to send
+// Returns 0 on success
+// Returns -1 on error
+int send_byte(HANDLE fd, char car) {
 	if ( write(fd, &car, 1)==-1) {
-    		printf("Error transmiting serial bytes\n");
-   		return 0;
+    		//printf("Error transmiting serial bytes\n");
+   		return -1;
   	}
-  	return 1;
+  	return 0;
 }
 
 
-int car_waiting(HANDLE fd) {
+// Check if there is a byte or not waiting to be read (RX)
+// Returns 'n' > 0 as numbers of bytes to read
+// Returns 0 is there is no byte waiting
+int rxbyte_waiting(HANDLE fd) {
 	int n;
 	if (ioctl(fd,TIOCINQ,&n)==0) {
 		return n;
@@ -60,7 +82,10 @@ int car_waiting(HANDLE fd) {
 }
 
 
-int bufftx_waiting(HANDLE fd){
+// Check if there is a byte or not waiting to be sent (TX)
+// Returns 'n' > 0 as numbers of bytes to send
+// Returns 0 is there is no byte waiting
+int txbyte_waiting(HANDLE fd) {
   int n=0;
   if (ioctl(fd,TIOCOUTQ,&n)==0) {
     return n;
@@ -70,7 +95,11 @@ int bufftx_waiting(HANDLE fd){
 
 
 
-char leer_car_plazo(HANDLE fd,int plazo, int *timeout) {
+// Read a byte within a period of time
+// Returns byte read
+// Returns -1 if timeout happened. 
+// timeout = 0 if no timeout, timeout = 1 if timeout
+char read_byte_time(HANDLE fd,int plazo, int *timeout) {
   fd_set leer;
   struct timeval tout;
   int n;
@@ -85,51 +114,63 @@ char leer_car_plazo(HANDLE fd,int plazo, int *timeout) {
   n=select(fd+2,&leer,NULL,NULL,&tout);
   if (n==0) {
     *timeout=1;
-    return 0;
+    return -1;
   }
   *timeout=0;
+
   read(fd,&c,1);
   return c;
 }
 
 
-char read_serial_car(HANDLE fd) {
+// Read a byte. Blocking call. waits until byte is received
+// Returns byte read
+char read_byte(HANDLE fd) {
 	char c;
 
-	while (!car_waiting(fd));
+	while (!rxbyte_waiting(fd));
 	read(fd,&c,1);
 	return c;
 }
 
 
+// Flush TX buffer
+// Returns -1 if error
+// Returns 0 if OK
 int flush_buffer_tx(HANDLE fd) {
   if (tcflush(fd,TCOFLUSH)==-1) {
-  //  printf("Error flushing TX buffer\n");
-    return 0;
+    return -1;
   }
-  return 1;
+  return 0;
 }
 
 
+// Flush RX buffer
+// Returns -1 if error
+// Returns 0 if OK
 int flush_buffer_rx(HANDLE fd) {
   if (tcflush(fd,TCIFLUSH)==-1) {
-  //  printf("Error flushing RX buffer\n");
-    return 0;
+    return -1;
   }
-  return 1;
+  return 0;
 }
 
 
+// Sends break signal
+// Returns -1 if error
+// Returns 0 if OK
 int send_break(HANDLE fd) {
   if (tcsendbreak(fd,1)==-1) {
-  //  printf("Error when sending BREAK\n");
-    return 0;
+    return -1;
   }
-  return 1;
+  return 0;
 }
 
 
-
+// Define serial port settings
+// str1 -> serial port name 
+// str2 -> serial port setting baud,databits, parity, stop bits
+// output PS structure
 PortSettingsType str2ps (char *str1, char*str2) {
 
 	PortSettingsType ps;
@@ -183,6 +224,7 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 
 	/* Get the current options */
 	if (tcgetattr(fdes,&options) != 0) {
+		// error getting the serial port configuration options
 		return -1;
 	}
 
@@ -227,10 +269,11 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 
 	default:
 		printf("Unsupported baud rate\n");
-		return -1;
+		return -2;
 	}
+        // If n != 0 then Baud Rate selection didn't work
 	if (n != 0) {
-		return -1;
+		return -7;  // Error settig the baud rate
 	}
 
 	/* Set the data size */
@@ -244,7 +287,7 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 		break;
 	default:
 		printf("Unsupported data size\n");
-		return -1;
+		return -3;
 	}
 
 	/* Set up parity */
@@ -263,8 +306,8 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 		options.c_iflag |= INPCK; /* Disnable parity checking */
 		break;
 	default:
-		printf("Unsupported parity\n");
-		return -1;
+		// Unsupported parity
+		return -4;
 	}
 
 	/* Set up stop bits */
@@ -276,8 +319,8 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 		options.c_cflag |= CSTOPB;
 		break;
 	default:
-		printf("Unsupported stop bits\n");
-		return -1;
+		// "Unsupported stop bits
+		return -5;
 	}
 
 	/* Set input parity option */
@@ -316,8 +359,8 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 
 	/* Update the options and do it NOW */
 	if (tcsetattr(fdes,TCSANOW,&options) != 0) {
-		return -1;
+		return -6; 
 	}
 
-	return -1;
+	return 0;
 }
