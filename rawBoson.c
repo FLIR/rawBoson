@@ -30,12 +30,10 @@ unsigned short BosonData_count = 0;    // Number of data received
 ------------------------------------------------------------------------------
 */
 
-
 // Boson is using this method: CRC-16/AUG-CCITT
 // https://github.com/meetanthony/crcphp/blob/master/crc16/crc_16_aug_ccitt.php
 unsigned short CalcBlockCRC16(unsigned int bufferlen, unsigned char *buffer)
 {
-
   unsigned short ccitt_16Table[] =
   {
       0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5,
@@ -82,91 +80,105 @@ unsigned short CalcBlockCRC16(unsigned int bufferlen, unsigned char *buffer)
       0x8FD9, 0x9FF8, 0x6E17, 0x7E36, 0x4E55, 0x5E74,
       0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
   };
+  unsigned int i;
+  unsigned short crc = 0x1D0F;   // CRC_16_AUG_CCITT Init Value
 
-    unsigned int i;
-    unsigned short crc = 0x1D0F;   // CRC_16_AUG_CCITT Init Value
-
-    if( buffer!=0) {
-        for (i=0; i<bufferlen; i++) {
-             crc = (unsigned short) ((crc << 8) ^ ccitt_16Table[(crc >> 8) ^ buffer[i]]);
-        }
+  if( buffer!=0) {
+    for (i=0; i<bufferlen; i++) {
+      crc = (unsigned short) ((crc << 8) ^ ccitt_16Table[(crc >> 8) ^ buffer[i]]);
     }
-    return crc;
+  }
+  return crc;
 }
 
-
 int64_t GetTickCount() {
-        unsigned long long   l_i64RetValue = 0;
-        struct    timespec now;
-        unsigned long long timestamp_secs_to_ms = 0;
-        unsigned long long  timestamp_nsecs_to_ms = 0;
-        unsigned long long   timestamp_ms = 0;
+  unsigned long long   l_i64RetValue = 0;
+  struct    timespec now;
+  unsigned long long timestamp_secs_to_ms = 0;
+  unsigned long long  timestamp_nsecs_to_ms = 0;
+  unsigned long long   timestamp_ms = 0;
 
-	//Clock Get Time ////////////////////
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        timestamp_secs_to_ms = ( unsigned long long)now.tv_sec;
-        timestamp_secs_to_ms = timestamp_secs_to_ms * 1000;
-        timestamp_nsecs_to_ms = ( unsigned long long)now.tv_nsec;
-        timestamp_nsecs_to_ms = timestamp_nsecs_to_ms / 1000000;
-        timestamp_ms = timestamp_secs_to_ms + timestamp_nsecs_to_ms;
-        l_i64RetValue = timestamp_ms;
-        return l_i64RetValue;
+  //Clock Get Time ////////////////////
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  timestamp_secs_to_ms = ( unsigned long long)now.tv_sec;
+  timestamp_secs_to_ms = timestamp_secs_to_ms * 1000;
+  timestamp_nsecs_to_ms = ( unsigned long long)now.tv_nsec;
+  timestamp_nsecs_to_ms = timestamp_nsecs_to_ms / 1000000;
+  timestamp_ms = timestamp_secs_to_ms + timestamp_nsecs_to_ms;
+  l_i64RetValue = timestamp_ms;
+  return l_i64RetValue;
 }
 
 // Low level function that sends a package through serial
-// If Error returns -1
-// If OK returns 0
+// Returns  0 (NoError) if OK
+// Returns -1 if ERROR
 int Send_Serial_package( unsigned char *package, short package_len) {
-    // Clear TX buffer
-    flush_buffer_tx(serial);   // Serial GLobal Var
-    // send_to_serial returns 0 if Error. 1 if OK
-    return send_buffer(serial, package, package_len) -1 ; // to convert to our Error convention
+  // Clear TX buffer
+  flush_buffer_tx(serial);   // Serial GLobal Var
+  return send_buffer(serial, package, package_len);
 }
 
 // Low level function that waits to receive a package from serial
-// It is prepare for Boson, so will start receiving bytes when 0x8E is received, and will finish when 0xAE
-// is received... or after a timeout
+// It is prepared for Boson, so will start receiving bytes when 0x8E is
+// received, and will finish when 0xAE is received... or after a timeout
+// Returns  0 if OK
+// Returns -1 if TIMEOUT (no start byte, or no data)
+// Returns -2 if MAX BUFFER REACHED
+// Returns -3 if TIMEOUT ( without gettign End_of_frame)
 int Receive_Serial_package() {
   int i=0;
   unsigned char car; // byte read from serial
   int64_t endwait;
 
-	// Clear the reception buffer
+  // Clear the reception buffer
   flush_buffer_rx(serial);   // Serial GLobal Var
 
-	// Repeat until START BYTE is received or timeout (10sec) happens!!
-	endwait = GetTickCount () + SERIAL_TIMEOUT;
-	while ( (GetTickCount() < endwait) )  {
-		  if ( rxbyte_waiting(serial) ) {
-            car = read_byte(serial)&0xFF;
-			      if ( car == 0x8E ) {
-                boson_stuffed_package[i++]=0x8E;
-                break;
-            }
+  // Repeat until START BYTE is received or timeout (10sec) happens!!
+  int64_t now;
+  now = GetTickCount();
+  endwait = now + SERIAL_TIMEOUT;
+  while ( now < endwait )  {
+    if ( rxbyte_waiting(serial) ) {
+      car = read_byte(serial)&0xFF;
+      if ( car == 0x8E ) {
+        boson_stuffed_package[i++]=0x8E;
+        break;
       }
+    }
+    now = GetTickCount();
   }
+
   if ( i==0 ) {
-      boson_stuffed_package_len=i;
-      return -1; // ERROR NO DATA or START FRAME received
+    boson_stuffed_package_len=i;
+    if (now >= endwait) {
+      return -3; //  // ERROR TIMEOUT
+    } else { 
+      return -1; // ERROR START FRAME not received
+    }
   }
 
   // Receive data until END of FRAME is received.
   endwait = GetTickCount () + SERIAL_TIMEOUT;
-	while ( (GetTickCount() < endwait) )  {
-      if ( rxbyte_waiting(serial) ) {
-          car = read_byte(serial);
-          boson_stuffed_package[i++]=car;
-          boson_stuffed_package_len=i;
-          if (car == 0xAE) {
-              return NoError;   // Package received
-          }
-          if (i>=1544) {  // MAX Buffer size without receiving END OF FRAME
-               return -2;
-          }
+  while ( (GetTickCount() < endwait) )  {
+    if ( rxbyte_waiting(serial) ) {
+      car = read_byte(serial);
+      boson_stuffed_package[i++]=car;
+      boson_stuffed_package_len=i;
+      if (car == 0xAE) {    // Check END of PACKAGE
+        return NoError;   // Package received
       }
+      if (i>=1544) {  // Check MAX_BUFFER size received
+        return -2; // Error : Max buffer reached without END_OF_PACKAGE
+      }
+    }
   }
-  return -2; // ERROR TIMEOUT !!
+  return -3; // ERROR TIMEOUT -> End of package not received
 }
+
+
+
+
+
 
 // Print Buffer in HEX
 void print_buffer(unsigned char *buffer, int bufferlen) {
@@ -176,7 +188,6 @@ void print_buffer(unsigned char *buffer, int bufferlen) {
   printf("\n");
 
 }
-
 
 // Print HELP MENU
 void print_help() {
@@ -191,7 +202,6 @@ void print_help() {
   printf(YEL ">>> " WHT "  b -> ascii: print answers in ASCII and HEX" WHT "\n");
 }
 
-
 /*
 ----------------------------------------------------------------
 ---                    Boson FUNCTIONS                       ---
@@ -204,69 +214,69 @@ void print_help() {
 //   aux_boson_package_len    // To storage real size of package
 //   sequence                 // This number increases in every SENT commnand.
 void Boson_Build_FSLP(
-                unsigned long  function,
-                unsigned char* Data,
-                unsigned short DataCount )
+  unsigned long  function,
+  unsigned char* Data,
+  unsigned short DataCount )
 {
-        unsigned short aux_crc;
-        int i;
+  unsigned short aux_crc;
+  int i;
 
-        //////////////////
-        // Create Header
-        aux_boson_package_len = 0;
+  //////////////////
+  // Create Header
+  aux_boson_package_len = 0;
 
-        // ---- Boson Header
-        // Start FLAG
-        aux_boson_package[0] = 0x8E;  // Start byte. For Boson is always this. Need bitstuffing later
-        // Channel Number
-        aux_boson_package[1] = 0x0;   // This Software always uses Channel 0 (Reserved for FLIR Binay Protocol)
+  // ---- Boson Header
+  // Start FLAG
+  aux_boson_package[0] = 0x8E;  // Start byte. For Boson is always this. Need bitstuffing later
+  // Channel Number
+  aux_boson_package[1] = 0x0;   // This Software always uses Channel 0 (Reserved for FLIR Binay Protocol)
 
-        // ---- Boson Payload ( 0 <= N <= 768)
+  // ---- Boson Payload ( 0 <= N <= 768)
 
-        // Sequence Number: Check that the answer has same number
-        // ( 4 - bytes)
-        sequence = ( sequence+1 )%0x0A;  // Number from 0 to 9
-        aux_boson_package[2] = 0;  // Fix to cero
-        aux_boson_package[3] = 0;  // Fix to cero
-        aux_boson_package[4] = 0;  // Fix to cero
-        aux_boson_package[5] = sequence & 0xFF;
+  // Sequence Number: Check that the answer has same number
+  // ( 4 - bytes)
+  sequence = ( sequence+1 )%0x0A;  // Number from 0 to 9
+  aux_boson_package[2] = 0;  // Fix to cero
+  aux_boson_package[3] = 0;  // Fix to cero
+  aux_boson_package[4] = 0;  // Fix to cero
+  aux_boson_package[5] = sequence & 0xFF;
 
-        // Command ID (4 bytes)
-        aux_boson_package[6] =  (unsigned char)(( function >> 24 ) & 0xFF);
-        aux_boson_package[7] =  (unsigned char)(( function >> 16 ) & 0xFF);
-        aux_boson_package[8] =  (unsigned char)(( function >> 8  ) & 0xFF);
-        aux_boson_package[9] =  (unsigned char)( function & 0xFF) ;
+  // Command ID (4 bytes)
+  aux_boson_package[6] =  (unsigned char)(( function >> 24 ) & 0xFF);
+  aux_boson_package[7] =  (unsigned char)(( function >> 16 ) & 0xFF);
+  aux_boson_package[8] =  (unsigned char)(( function >> 8  ) & 0xFF);
+  aux_boson_package[9] =  (unsigned char)( function & 0xFF) ;
 
-        // Command status
-        // When sending the command is set to 0xFF
-        // If receiver is OK should be all 0's
-        aux_boson_package[10] = 0xFF;
-        aux_boson_package[11] = 0xFF;
-        aux_boson_package[12] = 0xFF;
-        aux_boson_package[13] = 0xFF;
+  // Command status
+  // When sending the command is set to 0xFF
+  // If receiver is OK should be all 0's
+  aux_boson_package[10] = 0xFF;
+  aux_boson_package[11] = 0xFF;
+  aux_boson_package[12] = 0xFF;
+  aux_boson_package[13] = 0xFF;
 
-        // Move pointer in the TX buffer to start adding DATA
-        aux_boson_package_len += 14;
+  // Move pointer in the TX buffer to start adding DATA
+  aux_boson_package_len += 14;
 
-        // Data (0 <= N <= 756)
-        // TO DO: Convert to memcpy
-        for (i=0; i<DataCount; i++)
-        {
-                aux_boson_package[aux_boson_package_len + i] = Data[i];
-        }
-        aux_boson_package_len += DataCount;
+  // Data (0 <= N <= 756)
+  // TO DO: Convert to memcpy
+  for (i=0; i<DataCount; i++)
+  {
+    aux_boson_package[aux_boson_package_len + i] = Data[i];
+  }
+  aux_boson_package_len += DataCount;
 
-        // ---- Boson Trailer
-        // CRC16 (from Channel number to Last byte of data payload )
-        // CRC should be done before BIT STUFFING
-        aux_crc = CalcBlockCRC16(aux_boson_package_len-1, aux_boson_package+1);
-        aux_boson_package[aux_boson_package_len] = (unsigned char)((aux_crc >> 8) & 0xFF);
-        aux_boson_package[aux_boson_package_len + 1] = (unsigned char)(aux_crc & 0xFF);
-        // End FLAG (0x0A)
-        aux_boson_package[aux_boson_package_len + 2] = 0xAE;
+  // ---- Boson Trailer
+  // CRC16 (from Channel number to Last byte of data payload )
+  // CRC should be done before BIT STUFFING
+  aux_crc = CalcBlockCRC16(aux_boson_package_len-1, aux_boson_package+1);
+  aux_boson_package[aux_boson_package_len] = (unsigned char)((aux_crc >> 8) & 0xFF);
+  aux_boson_package[aux_boson_package_len + 1] = (unsigned char)(aux_crc & 0xFF);
+  // End FLAG (0x0A)
+  aux_boson_package[aux_boson_package_len + 2] = 0xAE;
 
-        // Return number of bytes to be sent
-        aux_boson_package_len += 3;   // Global variable
+  // Return number of bytes to be sent
+  aux_boson_package_len += 3;   // Global variable
 }
 
 // Prints Boson Payload before or after bitstuffing has been done
@@ -278,29 +288,29 @@ void Boson_Print_FSLP(unsigned char *data, unsigned short datalen ) {
   printf(YEL ">>> " WHT);
 
   for (i=0 ; i<datalen; i++) {
-      // Sequence number
-      if ( ((2<=pos) && (pos<=5)) ) {
-          printf(MAG "%02X " WHT, data[i]);
-          pos++;
-      }
-      // Command ID number
-      else if ( (6 <= pos) && (pos<=9)) {
-          printf(BLU "%02X " WHT, data[i]);
-          pos++;
-      }
-      // Command status
-      else if ( (10 <= pos) && (pos<=13)) {
-          printf(RED "%02X " WHT, data[i]);
-          pos++;
-      }
-      // Data
-      else if ( (14<=pos) && (pos<datalen-3)) {
-          printf(CYN "%02X " WHT, data[i]);
-          pos++;
-      } else {
-          printf(WHT "%02X " WHT, data[i]);
-          pos++;
-      }
+    // Sequence number
+    if ( ((2<=pos) && (pos<=5)) ) {
+      printf(MAG "%02X " WHT, data[i]);
+      pos++;
+    }
+    // Command ID number
+    else if ( (6 <= pos) && (pos<=9)) {
+      printf(BLU "%02X " WHT, data[i]);
+      pos++;
+    }
+    // Command status
+    else if ( (10 <= pos) && (pos<=13)) {
+      printf(RED "%02X " WHT, data[i]);
+      pos++;
+    }
+    // Data
+    else if ( (14<=pos) && (pos<datalen-3)) {
+      printf(CYN "%02X " WHT, data[i]);
+      pos++;
+    } else {
+      printf(WHT "%02X " WHT, data[i]);
+      pos++;
+    }
   }
   printf("\n");
 }
@@ -308,38 +318,38 @@ void Boson_Print_FSLP(unsigned char *data, unsigned short datalen ) {
 // Once FRAME and BIT_UNSTUFFING has been done, we will
 // perform basic checks in the FRAME. Also grab the DATA.
 int Boson_Check_Received_Frame(unsigned char *pkg) {
-    unsigned short aux_crc;
-    unsigned long aux_var=0;
+  unsigned short aux_crc;
+  unsigned long aux_var=0;
 
-    // Check Channel is ZERO
-    if ( pkg[1] != 0 ) {
-        return -1;  // Answer not received in channel 0
-    }
+  // Check Channel is ZERO
+  if ( pkg[1] != 0 ) {
+    return -1;  // Answer not received in chanel 0
+  }
 
-    // Check STATUS is all ZERO
-    aux_var = (long)(pkg[10]<<24) + (long)(pkg[11]<<16) + (long)(pkg[12]<<8) + (long)(pkg[13]);
-    if (aux_var != 0) {
-        return  (int)aux_var ; // STATUS has errors. Is not ZERO
-    }
+  // Check STATUS is all ZERO
+  aux_var = (long)(pkg[10]<<24) + (long)(pkg[11]<<16) + (long)(pkg[12]<<8) + (long)(pkg[13]);
+  if (aux_var != 0) {
+    return  (int)aux_var ; // STATUS has errors. Is not ZERO
+  }
 
-    // Check Sequence number is what we sent.
-    aux_var = (long)(pkg[2]<<24) + (long)(pkg[3]<<16) + (long)(pkg[4]<<8) + (long)(pkg[5]);
-    if (aux_var != (long)sequence ) {
-        return -3;  // Sequence mistmatch
-    }
+  // Check Sequence number is what we sent.
+  aux_var = (long)(pkg[2]<<24) + (long)(pkg[3]<<16) + (long)(pkg[4]<<8) + (long)(pkg[5]);
+  if (aux_var != (long)sequence ) {
+    return -3;  // Sequence mistmatch
+  }
 
-    // Check CRC
-    aux_crc = CalcBlockCRC16(aux_boson_package_len-4, aux_boson_package+1);
-    if (aux_crc != ( (pkg[aux_boson_package_len-3] * 256) + pkg[aux_boson_package_len-2]) ) {
-        return -4;
-    }
+  // Check CRC
+  aux_crc = CalcBlockCRC16(aux_boson_package_len-4, aux_boson_package+1);
+  if (aux_crc != ( (pkg[aux_boson_package_len-3] * 256) + pkg[aux_boson_package_len-2]) ) {
+    return -4;  // Bad CRC
+  }
 
-    // Grab DATA if any and copy it to BosonData array
-    if ( aux_boson_package_len>17 ) { // We got extra DATA
-        BosonData_count=aux_boson_package_len-17;
-        memcpy(BosonData, aux_boson_package+14, BosonData_count);
-    }
-    return NoError;   // No error
+  // Grab DATA if any and copy it to BosonData array
+  if ( aux_boson_package_len>17 ) { // We got extra DATA
+    BosonData_count=aux_boson_package_len-17;
+    memcpy(BosonData, aux_boson_package+14, BosonData_count);
+  }
+  return NoError;   // No error
 }
 
 
@@ -359,22 +369,22 @@ void Boson_BitStuffing() {
   boson_stuffed_package[0]=aux_boson_package[j++];
   // Search for bytes to be sttuffed
   for(i=1; i<aux_boson_package_len-1 ; i++) {
-      switch (aux_boson_package[i]) {
-        case 0x8E:
-            boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0x81;
-            break;
-        case 0x9E:
-            boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0x91;
-            break;
-        case 0xAE:
-            boson_stuffed_package[j++]=0x9E;
-            boson_stuffed_package[j++]=0xA1;
-            break;
-        default:
-            boson_stuffed_package[j++]=aux_boson_package[i];
-      }
+    switch (aux_boson_package[i]) {
+      case 0x8E:
+        boson_stuffed_package[j++]=0x9E;
+        boson_stuffed_package[j++]=0x81;
+        break;
+      case 0x9E:
+        boson_stuffed_package[j++]=0x9E;
+        boson_stuffed_package[j++]=0x91;
+        break;
+      case 0xAE:
+        boson_stuffed_package[j++]=0x9E;
+        boson_stuffed_package[j++]=0xA1;
+        break;
+      default:
+        boson_stuffed_package[j++]=aux_boson_package[i];
+    }
   }
   // Add END of FRAME to stuffed package
   boson_stuffed_package[j++]=aux_boson_package[i];
@@ -398,58 +408,55 @@ void Boson_BitUnstuffing() {
   aux_boson_package[j++]=boson_stuffed_package[0];
   // Search for bytes to be sttuffed
   for(i=1; i<boson_stuffed_package_len-1 ; i++) {
-      if ( boson_stuffed_package[i]==0x9E) {
-          aux_boson_package[j++]=boson_stuffed_package[i+1]+0xD;  // This is required by Boson
-          i++;  // skip one (already used)
-      } else {
-          aux_boson_package[j++]=boson_stuffed_package[i];
-      }
+    if ( boson_stuffed_package[i]==0x9E) {
+      aux_boson_package[j++]=boson_stuffed_package[i+1]+0xD;  // This is required by Boson
+      i++;  // skip one (already used)
+    } else {
+      aux_boson_package[j++]=boson_stuffed_package[i];
+    }
   }
   // Add END of FRAME to stuffed package
   aux_boson_package[j++]=boson_stuffed_package[i];
   // Update new lenght of package to be sent
   aux_boson_package_len=j;
-
 }
 
 // Boson Status message returns codes
 // Boson can send an error in the status field of the
 // received message. These are most common ones.
 void Boson_Status_Error_Codes(int code) {
-    switch (code) {
-      case R_CAM_DSPCH_BAD_CMD_ID:  // 0x0161
-           printf(RED ">>> Error : Boson Status (" MAG "Bad CMD ID" RED ")" RESET "\n");
-           break;
-      case R_CAM_DSPCH_BAD_PAYLOAD_STATUS:  // 0x0162
-           printf(RED ">>> Error : Boson Status (" MAG "Bad Payload" RED ")" RESET "\n");
-           break;
-      case R_CAM_PKG_UNSPECIFIED_FAILURE:  // 0x0170
-           printf(RED ">>> Error : Boson Status (" MAG "Unspecified" RED ")" RESET "\n");
-           break;
-      case R_CAM_PKG_INSUFFICIENT_BYTES:  // 0x017D
-           printf(RED ">>> Error : Boson Status (" MAG "Insufficient bytes" RED ")" RESET "\n");
-           break;
-      case R_CAM_PKG_EXCESS_BYTES:  // 0x017E
-           printf(RED ">>> Error : Boson Status (" MAG "Excess bytes" RED ")" RESET "\n");
-           break;
-      case R_CAM_PKG_BUFFER_OVERFLOW:  // 0x017F
-           printf(RED ">>> Error : Boson Status (" MAG "Buffer Overflow" RED ")" RESET "\n");
-           break;
-      case FLIR_RANGE_ERROR :  // 0x0203
-           printf(RED ">>> Error : Boson Status (" MAG "Range Error" RED ")" RESET "\n");
-           break;
-      default:
-           printf(RED ">>> Error : Boson Status (" MAG "Unknown" RED ")" RESET "\n");
-           break;
-    }
-
+  switch (code) {
+    case R_CAM_DSPCH_BAD_CMD_ID:  // 0x0161
+      printf(RED ">>> Error : Boson Status (" MAG "Bad CMD ID" RED ")" RESET "\n");
+      break;
+    case R_CAM_DSPCH_BAD_PAYLOAD_STATUS:  // 0x0162
+      printf(RED ">>> Error : Boson Status (" MAG "Bad Payload" RED ")" RESET "\n");
+      break;
+    case R_CAM_PKG_UNSPECIFIED_FAILURE:  // 0x0170
+      printf(RED ">>> Error : Boson Status (" MAG "Unspecified" RED ")" RESET "\n");
+      break;
+    case R_CAM_PKG_INSUFFICIENT_BYTES:  // 0x017D
+      printf(RED ">>> Error : Boson Status (" MAG "Insufficient bytes" RED ")" RESET "\n");
+      break;
+    case R_CAM_PKG_EXCESS_BYTES:  // 0x017E
+      printf(RED ">>> Error : Boson Status (" MAG "Excess bytes" RED ")" RESET "\n");
+      break;
+    case R_CAM_PKG_BUFFER_OVERFLOW:  // 0x017F
+      printf(RED ">>> Error : Boson Status (" MAG "Buffer Overflow" RED ")" RESET "\n");
+      break;
+    case FLIR_RANGE_ERROR :  // 0x0203
+      printf(RED ">>> Error : Boson Status (" MAG "Range Error" RED ")" RESET "\n");
+      break;
+    default:
+      printf(RED ">>> Error : Boson Status (" MAG "Unknown" RED ")" RESET "\n");
+      break;
+  }
 }
 
 //------------------------------------------------------
 // Entry point to the program. Read arguments and
 // run the Function to make the Boson Package.
 int main(int argc, char **argv) {
-
   // Serial Port variables
   char puerto_str[30];            // We give up to 30 chars to put the path
   char baudios_str[10];           // Max size is 921600 ... so we give margin
@@ -467,103 +474,102 @@ int main(int argc, char **argv) {
   char aux_cad[20];
   int  aux_data;
 
-	// Default BOSON values
-	strcpy(puerto_str,"/dev/ttyACM0");
-	baudios=921600;
+  // Default BOSON values
+  strcpy(puerto_str,"/dev/ttyACM0");
+  baudios=921600;
 
   // Check that are line arguments
   if (argc<=1) {
-     print_help();
-     printf(YEL ">>>" WHT "\n");
-     return -1;
+    print_help();
+    printf(YEL ">>>" WHT "\n");
+    return -1;
   }
 
   // Read command line arguments
   for (i=0; i<argc; i++) {
-      // Look for verbose mode
-      if ( argv[i][0]=='v') {
-          debug_on=1;
-      } // Look for feedback in ASCII
-      else if ( argv[i][0]=='a') {
-          ascii_on=1;
-      } // Look for feedback in ASCII and HEX
-      else if ( argv[i][0]=='b') {
-          ascii_on=2;
+    // Look for verbose mode
+    if ( argv[i][0]=='v') {
+      debug_on=1;
+    } // Look for feedback in ASCII
+    else if ( argv[i][0]=='a') {
+      ascii_on=1;
+    } // Look for feedback in ASCII and HEX
+    else if ( argv[i][0]=='b') {
+      ascii_on=2;
+    } // Check Serial Port or Baudrate
+    else if ( argv[i][0]=='-' ) {
+      if ( argv[i][1]=='p' ) {
+        strcpy(puerto_str, argv[i]+2);
+      } else if ( argv[i][1]=='b' ) {
+        strcpy(baudios_str, argv[i]+2);
+        baudios=atoi(baudios_str);
       }
-      // Check Serial Port or Baudrate
-      else if ( argv[i][0]=='-' ) {
-          if ( argv[i][1]=='p' ) {
-              strcpy(puerto_str, argv[i]+2);
-			    } else if ( argv[i][1]=='b' ) {
-              strcpy(baudios_str, argv[i]+2);
-              baudios=atoi(baudios_str);
-          }
+    }
+    // Check for the commandID
+    else if ( argv[i][0]=='c') {
+      strcpy(commandID_str, argv[i]+1);
+      commandID = hex_to_long(commandID_str);
+    }
+    // Check for FUNCTION DATA
+    else if ( argv[i][0]=='x' ) {
+      strcpy(aux_data_str, argv[i]+1);
+      aux_data=hex_to_int(aux_data_str);
+      if ( aux_data<0 ) {  // ERROR parsing data. Bad entry
+        print_help();
+        if ( aux_data==-1) {
+          printf(YEL ">>> " RED "Error : HexData too LONG (max 1 byte in HEX)" WHT "\n");
+        }
+        if ( aux_data==-2) {
+          printf(YEL ">>> " RED "Error : Some CHARs are not HEX range " WHT "\n");
+        }
+        printf(YEL ">>> " RED "Error : data[%i]=0x%s not valid " WHT "\n", num_bytes, aux_data_str);
+        return -1;   // Exit program
       }
-      // Check for the commandID
-      else if ( argv[i][0]=='c') {
-          strcpy(commandID_str, argv[i]+1);
-          commandID = hex_to_long(commandID_str);
+      if (num_bytes>768) {   // ERROR parsing data. Too many data inputs
+        print_help();
+        printf(YEL "\n>>> " RED "Error : data num_bytes out of range. Too many DATA IN" WHT "\n");
+        return -1;   // Exit program
       }
-      // Check for FUNCTION DATA
-      else if ( argv[i][0]=='x' ) {
-          strcpy(aux_data_str, argv[i]+1);
-          aux_data=hex_to_int(aux_data_str);
-          if ( aux_data<0 ) {  // ERROR parsing data. Bad entry
-              print_help();
-              if ( aux_data==-1) {
-                  printf(YEL ">>> " RED "Error : HexData too LONG (max 1 byte in HEX)" WHT "\n");
-              }
-              if ( aux_data==-2) {
-                  printf(YEL ">>> " RED "Error : Some CHARs are not HEX range " WHT "\n");
-              }
-              printf(YEL ">>> " RED "Error : data[%i]=0x%s not valid " WHT "\n", num_bytes, aux_data_str);
-              return -1;   // Exit program
-          }
-          if (num_bytes>768) {   // ERROR parsing data. Too many data inputs
-            print_help();
-            printf(YEL "\n>>> " RED "Error : data num_bytes out of range. Too many DATA IN" WHT "\n");
-            return -1;   // Exit program
-		      }
-         tx_buffer[num_bytes]=aux_data&0xFF;
-		     num_bytes++;    // Data to transmit Not includding commandID
-	     }
+      tx_buffer[num_bytes]=aux_data&0xFF;
+		  num_bytes++;    // Data to transmit Not includding commandID
+    }
   }  // End of parsing arguments.
 
   // If commandID < 0 then EXIT with error.
   // Don't even try to Open Serial Port
   if ( commandID < 0 ) {  // ERROR getting the CommandID
-        print_help();
-        if ( commandID == -1) {
-            printf(YEL ">>> " RED "Error : command ID too LONG (max 4 bytes in HEX)" WHT "\n");
-        }
-        if ( commandID == -2) {
-            printf(YEL ">>> " RED "Error : Some CHARs are not HEX range " WHT "\n");
-        }
-        printf(YEL ">>> " RED "Error : Invalid command ID" WHT "\n");
-        return -1;  // Exit main program
+    print_help();
+    if ( commandID == -1) {
+      printf(YEL ">>> " RED "Error : command ID too LONG (max 4 bytes in HEX)" WHT "\n");
+    }
+    if ( commandID == -2) {
+      printf(YEL ">>> " RED "Error : Some CHARs are not HEX range " WHT "\n");
+    }
+    printf(YEL ">>> " RED "Error : Invalid command ID" WHT "\n");
+    return -1;  // Exit main program
   }
 
-	sprintf(aux_cad,"%i,8,n,1",baudios);
-	// open serial port
-	puerto_serie_conf=str2ps(puerto_str,aux_cad);
-	ret=open_port(puerto_serie_conf, &serial);
-	if ( ret != 0) {
-      print_help();
-  		printf(RED ">>> Error while opening serial port " CYN "%s" RESET "\n", puerto_str);
-  		printf(RED ">>> Use rawBoson -p/dev/ttyXXX to select yours." RESET "\n");
-  		return -1;
-	}
+  sprintf(aux_cad,"%i,8,n,1",baudios);
+  // open serial port
+  puerto_serie_conf=str2ps(puerto_str,aux_cad);
+  ret=open_port(puerto_serie_conf, &serial);
+  if ( ret != 0) {
+    print_help();
+    printf(RED ">>> Error while opening serial port " CYN "%s" RESET "\n", puerto_str);
+    printf(RED ">>> Use rawBoson -p/dev/ttyXXX to select yours." RESET "\n");
+    return -1;   // Exit program
+  }
 
-	if ( debug_on == 1) {
-  		print_help();
-      printf(YEL ">>> " CYN "%s (%s)" WHT "\n", puerto_str, aux_cad);
-  		printf(YEL ">>> " CYN "DEBUG (v) mode ON" WHT "\n");
-  		if ( ascii_on == 1 ) {
-  		    printf(YEL ">>> " CYN "Ascii (a) mode ON" WHT "\n");
-  		} else {
-  		    printf(YEL ">>> " CYN "Ascii (a) mode OFF" WHT "\n");
-  		}
-  	  printf(YEL ">>>  \n\n" WHT);
+  if ( debug_on == 1) {
+    print_help();
+    printf(YEL ">>> " CYN "%s (%s)" WHT "\n", puerto_str, aux_cad);
+    printf(YEL ">>> " CYN "DEBUG (v) mode ON" WHT "\n");
+    if ( ascii_on == 1 ) {
+      printf(YEL ">>> " CYN "Ascii (a) mode ON" WHT "\n");
+    } else {
+      printf(YEL ">>> " CYN "Ascii (a) mode OFF" WHT "\n");
+    }
+    printf(YEL ">>>  \n\n" WHT);
   }
 
   /* STEP 1 */
@@ -589,7 +595,7 @@ int main(int argc, char **argv) {
   if ( ret < 0 ) {  // Function returns -1 if error
     printf(RED ">>> Error while sending bytes " RESET "\n");
     close_port(serial);
-    return -1;
+    return -1;  // Exit program
   }
 
   /* STEP 4 */
@@ -597,7 +603,7 @@ int main(int argc, char **argv) {
   memset(boson_stuffed_package, 0, boson_stuffed_package_len);  // Receive from serial
   memset(aux_boson_package, 0, aux_boson_package_len);          // After unstuffing
   // Put a CERO the count of received bytes
-	boson_stuffed_package_len=0;
+  boson_stuffed_package_len=0;
   aux_boson_package_len=0;
 
   /* STEP 5 */
@@ -609,13 +615,13 @@ int main(int argc, char **argv) {
   //print_buffer(boson_stuffed_package, boson_stuffed_package_len);
   if ( ret < 0 ) {  // Function returns <0 if error
     if ( ret==-1) {
-        printf(RED ">>> Error while receiving bytes (No START Detected) " RESET "\n");
+      printf(RED ">>> Error while receiving bytes (No START Detected) " RESET "\n");
     } else if ( ret==-2) {
-        printf(RED ">>> Error while receiving bytes (Buffer Overflow > 1544)" RESET "\n");
+      printf(RED ">>> Error while receiving bytes (Buffer Overflow > 1544)" RESET "\n");
     } else if (ret==-3) {
-        printf(RED ">>> Error while receiving bytes (Timeout)" RESET "\n");
+      printf(RED ">>> Error while receiving bytes (Timeout)" RESET "\n");
     } else {
-        printf(RED ">>> Error while receiving bytes " RESET "\n");
+      printf(RED ">>> Error while receiving bytes " RESET "\n");
     }
     close_port(serial);
     return -1;
@@ -640,43 +646,42 @@ int main(int argc, char **argv) {
   ret = Boson_Check_Received_Frame(aux_boson_package);
   if (ret!=0) { // Check FAILS
     if ( ret==-1) {
-        printf(RED ">>> Error : Boson Answer didn't come through CHANNEL 0" RESET "\n");
+      printf(RED ">>> Error : Boson Answer didn't come through CHANNEL 0" RESET "\n");
     } else if (ret==-3) {
-        printf(RED ">>> Error : Boson Sequence mistmatch" RESET "\n");
+      printf(RED ">>> Error : Boson Sequence mistmatch" RESET "\n");
     } else if (ret==-4) {
-        printf(RED ">>> Error : Boson Bad CRC Received " RESET "\n");
+      printf(RED ">>> Error : Boson Bad CRC Received " RESET "\n");
     } else if ( ret>0 ) {
-        Boson_Status_Error_Codes(ret);
+      Boson_Status_Error_Codes(ret);
     } else {
-        printf(RED ">>> Error : Boson Undefined Error " RESET "\n");
+      printf(RED ">>> Error : Boson Undefined Error " RESET "\n");
     }
   }
 
   /* STEP 8 */
   // Print DATA received
   if ( BosonData_count>0) {
-      if (debug_on == 1) {
-          printf(YEL ">>>" WHT " Data received (%i bytes) : ", BosonData_count);
+    if (debug_on == 1) {
+      printf(YEL ">>>" WHT " Data received (%i bytes) : ", BosonData_count);
+    }
+    printf(CYN);
+    for (i=0; i<BosonData_count; i++) {
+      if (ascii_on ==1 ) {  // Just ASCII
+        printf("%c",BosonData[i]);
+      } else if (ascii_on==2) {  // ASCII and HEX
+        printf("%02X('%c') ",BosonData[i],BosonData[i]);
+      } else {
+        printf("%02X ",BosonData[i]);
       }
-      printf(CYN);
-      for (i=0; i<BosonData_count; i++) {
-          if (ascii_on ==1 ) {  // Just ASCII
-              printf("%c",BosonData[i]);
-          } else if (ascii_on==2) {  // ASCII and HEX
-              printf("%02X('%c') ",BosonData[i],BosonData[i]);
-          } else {
-              printf("%02X ",BosonData[i]);
-          }
-      }
-      if (debug_on == 1) {
-          printf("\n" YEL ">>>" );
-      }
-      printf(WHT "\n");
+    }
+    if (debug_on == 1) {
+      printf("\n" YEL ">>>" );
+    }
+    printf(WHT "\n");
   }
 
   // close serial port and exit application
-	close_port(serial);
-	return NoError;
-
+  close_port(serial);
+  return NoError;
 }
 /* END OF FILE */
