@@ -13,7 +13,7 @@ OFILES= serial.o rawBoson.o bytes.o
 $(EJECUTABLE):	$(OFILES)
 		$(CC)  $(CFLAGS) -o  $(EJECUTABLE) $(OFILES)
 
-%.o:	%.cpp
+%.o:	%.c
 	$(CC) -c $(CFLAGS)  $< -o $@ 
 
 clean:
