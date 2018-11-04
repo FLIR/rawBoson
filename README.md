@@ -1,4 +1,7 @@
-## Description-
+FLIR Systems, Inc <BR>
+2018 Nov <BR>
+
+## Description
 
 RawBoson is a tool that implements Boson FSLP protocol over serial.
 It allows to send any command that is in Boson-ICD to the camera.
@@ -20,9 +23,9 @@ Other parameters:
 
 
 ## Instructions 
-
+```
 To compile : make
 To clean   : make clean
-
+```
 ## Add right permissions to serial port
 sudo chmod a+rwx /dev/ttyACM0
