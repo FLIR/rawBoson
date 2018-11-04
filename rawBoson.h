@@ -3,6 +3,7 @@
 // version 0.1.3 : Fixing the HELP menu to include working examples.
 // version 0.1.4 : Translating to english
 // version 1.0.0 : Fix CRC issue, start using GitHub tags to track versions.
+// version 1.0.1 : Fix serial.c (setup_serial) bug. Credits to serial library authors 
 
 #ifndef RAWBOSON_H
 #define RAWBOSON_H
