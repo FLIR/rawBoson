@@ -1,4 +1,3 @@
-
 #ifndef BYTES_H
 #define BYTES_H
 
