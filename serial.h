@@ -121,7 +121,7 @@ int txbyte_waiting(HANDLE fd);
 // Returns byte read
 // Returns -1 if timeout happened.
 // timeout = 0 if no timeout, timeout = 1 if timeout
-unsigned char read_byte_time(HANDLE fd);
+unsigned char read_byte_time(HANDLE fd, int plazo, int *timeout);
 
 // Read a byte. Blocking call. waits until byte is received
 // Returns byte read
