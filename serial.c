@@ -68,7 +68,7 @@ int send_buffer(HANDLE fd, unsigned char *tx_array, short bytes_to_send) {
 // Input: serial port handler, byte to send
 // Returns 0 on success
 // Returns -1 on error
-int send_byte(HANDLE fd, char car) {
+int send_byte(HANDLE fd, unsigned char car) {
 	if ( write(fd, &car, 1)==-1) {
    		return -1;
   	}
