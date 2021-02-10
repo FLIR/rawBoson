@@ -8,6 +8,7 @@ It allows to send any command that is in Boson-ICD to the camera.
 This package doesn't contain the Boson-ICD, in order to get one please refer to :
 
 [FLIR Boson](http://www.flir.com/cores/boson/)
+
 [ICD](https://www.flir.com/globalassets/imported-assets/document/boson_sdk_documentation_9hz-v11412-and-later.pdf)
 
 It gets a function and its parameters, converts that to FSLP protocol and sends it through serial.
