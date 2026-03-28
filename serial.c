@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 #include "serial.h"
+#include <sys/select.h>
 
 // Opens serial port
 // Input  : PortSettingType
@@ -57,11 +58,20 @@ int close_port(HANDLE handle) {
 // Input: serial port handler, pointer to first byte of buffer , number of bytes to send
 // Returns 0 on success
 // Returns -1 on error
-int send_buffer(HANDLE fd, unsigned char *tx_array, short bytes_to_send) {
-	if ( write(fd, tx_array,bytes_to_send)==-1) {
-   		return -1;   // Error
-  	}
-  	return 0;  // Success
+int send_buffer(HANDLE fd, const unsigned char *tx_array, size_t bytes_to_send) {
+	if (bytes_to_send == 0) {
+		return 0;
+	}
+	ssize_t total_written = 0;
+	const unsigned char *ptr = tx_array;
+	while ((size_t)total_written < bytes_to_send) {
+		ssize_t written = write(fd, ptr + total_written, bytes_to_send - (size_t)total_written);
+		if (written <= 0) {
+			return -1;   // Error
+		}
+		total_written += written;
+	}
+	return 0;  // Success
 }
 
 // Send one byte
@@ -83,7 +93,7 @@ int rxbyte_waiting(HANDLE fd) {
 	if (ioctl(fd,TIOCINQ,&n)==0) {
 		return n;
 	}
-	return 0;
+	return -1;
 }
 
 // Check if there is a byte or not waiting to be sent (TX)
@@ -98,40 +108,59 @@ int txbyte_waiting(HANDLE fd) {
 }
 
 // Read a byte within a period of time
-// Returns byte read
-// Returns -1 if timeout happened.
+// Returns byte read (0..255)
+// Returns -1 if timeout happened or error occurs.
 // timeout = 0 if no timeout, timeout = 1 if timeout
-unsigned char read_byte_time(HANDLE fd,int plazo, int *timeout) {
+int read_byte_time(HANDLE fd,int period, int *timeout) {
   fd_set leer;
   struct timeval tout;
   int n;
   unsigned char c;
 
-  tout.tv_sec=0;
-  tout.tv_usec=plazo;
+  tout.tv_sec = 0;
+  tout.tv_usec = period;
 
   FD_ZERO(&leer);
-  FD_SET(fd,&leer);
+  FD_SET(fd, &leer);
 
-  n=select(fd+2,&leer,NULL,NULL,&tout);
-  if (n==0) {
-    *timeout=1;
+  n = select(fd + 1, &leer, NULL, NULL, &tout);
+  if (n == 0) {
+    *timeout = 1;
     return -1;
   }
-  *timeout=0;
+  if (n < 0) {
+    *timeout = 1;
+    return -1;
+  }
+  *timeout = 0;
 
-  read(fd,&c,1);
-  return c;
+  if (read(fd, &c, 1) != 1) {
+    *timeout = 1;
+    return -1;
+  }
+  return (int)c;
 }
 
 // Read a byte. Blocking call. waits until byte is received
 // Returns byte read
-unsigned char read_byte(HANDLE fd) {
+int read_byte(HANDLE fd) {
 	unsigned char c;
+	int waiting;
 
-	while (!rxbyte_waiting(fd));
-	read(fd,&c,1);
-	return c;
+	while (1) {
+		waiting = rxbyte_waiting(fd);
+		if (waiting < 0) {
+			return -1;
+		}
+		if (waiting > 0) {
+			break;
+		}
+	}
+
+	if (read(fd, &c, 1) != 1) {
+		return -1;
+	}
+	return (int)c;
 }
 
 // Flush TX buffer
@@ -180,7 +209,7 @@ PortSettingsType str2ps (char *str1, char*str2) {
 	ps.parity=NOPARITY;
 	ps.stopbits=ONESTOPBIT;
 
-	sprintf(ps.port,"%s",str1);
+	snprintf(ps.port, sizeof(ps.port), "%s", str1);
 
 	if (sscanf(str2,"%d,%d,%c,%s",&ps.baudrate,&ps.databits,&parity,stopbits) == 4) {
 		switch (parity) {
@@ -277,7 +306,7 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 	}
   // If n != 0 then Baud Rate selection didn't work
 	if (n != 0) {
-		return -3;  // Error settig the baud rate
+		return -3;  // Error setting the baud rate
 	}
 
 	// Set the data size
@@ -302,12 +331,12 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 		break;
 	case ODDPARITY:
 		options.c_cflag |= (PARODD | PARENB); // Enable odd parity
-		options.c_iflag |= INPCK;  // Disnable parity checking
+		options.c_iflag |= INPCK;  // Disable parity checking
 		break;
 	case EVENPARITY:
 		options.c_cflag |= PARENB;  // Enable parity
 		options.c_cflag &= ~PARODD; // Turn odd off => even
-		options.c_iflag |= INPCK;   // Disnable parity checking
+		options.c_iflag |= INPCK;   // Disable parity checking
 		break;
 	default:
 		// Unsupported parity
@@ -332,7 +361,9 @@ int setup_serial(int fdes,int baud,int databits,int stopbits,int parity) {
 		options.c_iflag |= INPCK;
 
 	// Deal with hardware or software flow control
+#ifdef CRTSCTS
 	options.c_cflag &= ~CRTSCTS; // Disable RTS/CTS
+#endif
 	//options.c_iflag |= (IXANY); // xon/xoff flow control
 	options.c_iflag &= ~(IXON|IXOFF|IXANY); // xon/xoff flow control
 

@@ -44,8 +44,6 @@
 #define R_CAM_PKG_BUFFER_OVERFLOW         0x017F
 #define FLIR_RANGE_ERROR                  0x0203  
 
-PortSettingsType puerto_serie_conf;
-HANDLE serial;
-void print_buffer(unsigned char *buffer, int bufferlen);
+void print_buffer(const unsigned char *buffer, size_t bufferlen);
 
 #endif

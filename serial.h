@@ -95,11 +95,11 @@ int close_port(HANDLE handle);
 // output PS structure
 PortSettingsType str2ps (char *str1, char*str2);
 
-// Send buffer of  bytes
-// Input: serial port handler, pointer to first byte of buffer , number of bytes to send
+// Send buffer of bytes
+// Input: serial port handler, pointer to first byte of buffer, number of bytes to send
 // Returns 0 on success
 // Returns -1 on error
-int send_buffer(HANDLE fd, unsigned char* tx_array, short bytes_to_send);
+int send_buffer(HANDLE fd, const unsigned char *tx_array, size_t bytes_to_send);
 
 // Send one byte
 // Input: serial port handler, byte to send
@@ -118,14 +118,15 @@ int rxbyte_waiting(HANDLE fd);
 int txbyte_waiting(HANDLE fd);
 
 // Read a byte within a period of time
-// Returns byte read
-// Returns -1 if timeout happened.
+// Returns byte read (0..255)
+// Returns -1 if timeout happened or error occurs
 // timeout = 0 if no timeout, timeout = 1 if timeout
-unsigned char read_byte_time(HANDLE fd, int plazo, int *timeout);
+int read_byte_time(HANDLE fd, int period, int *timeout);
 
 // Read a byte. Blocking call. waits until byte is received
-// Returns byte read
-unsigned char read_byte(HANDLE fd);
+// Returns byte read (0..255)
+// Returns -1 on error
+int read_byte(HANDLE fd);
 
 // Flush RX buffer
 // Returns -1 if error
@@ -140,6 +141,6 @@ int flush_buffer_tx(HANDLE fd);
 // Sends break signal
 // Returns -1 if error
 // Returns 0 if OK
-int send_break();
+int send_break(HANDLE fd);
 
 #endif
