@@ -344,7 +344,7 @@ int Boson_Check_Received_Frame(BosonContext *ctx, const unsigned char *pkg, size
   }
 
   if (pkg_len > sizeof(ctx->aux_boson_package)) {
-    return -5; // Frame too large for unstuffed Boson packet
+    return -5; // Frame too large for un stuffed Boson packet
   }
 
   if (pkg[0] != 0x8E || pkg[pkg_len-1] != 0xAE) {
