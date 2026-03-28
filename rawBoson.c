@@ -217,7 +217,7 @@ void print_help() {
   printf(YEL ">>> \n" WHT);
   printf(YEL ">>> " WHT "  -v or v -> verbose, print advanced output on screen" WHT "\n");
   printf(YEL ">>> " WHT "  -a or a -> ascii: print answers in ASCII " WHT "\n");
-  printf(YEL ">>> " WHT "  -b or b -> ascii: print answers in ASCII and HEX" WHT "\n");
+  printf(YEL ">>> " WHT "  -B or B -> ascii: print answers in ASCII and HEX" WHT "\n");
   printf(YEL ">>> " WHT "  -h or --help -> print this help message" WHT "\n");
 }
 
@@ -540,7 +540,7 @@ int main(int argc, char **argv) {
       debug_on = 1;
     } else if (strcmp(arg, "a") == 0 || strcmp(arg, "-a") == 0) {
       ascii_on = 1;
-    } else if (strcmp(arg, "b") == 0 || strcmp(arg, "-b") == 0) {
+    } else if (strcmp(arg, "B") == 0 || strcmp(arg, "-B") == 0) {
       ascii_on = 2;
     } else if (strcmp(arg, "-p") == 0) {
       if (i + 1 >= argc) {
